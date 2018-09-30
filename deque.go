@@ -15,12 +15,13 @@ type Deque struct {
 }
 
 // NewDeque creates a Deque.
-func NewDeque() *Deque {
-	return NewCappedDeque(-1)
+func NewDeque(capacity int, withBlock bool) *Deque {
+	// cap default -1
+	return NewCappedDeque(capacity, withBlock)
 }
 
 // NewCappedDeque creates a Deque with the specified capacity limit.
-func NewCappedDeque(capacity int) *Deque {
+func NewCappedDeque(capacity int, withBlock bool) *Deque {
 	return &Deque{
 		container: list.New(),
 		capacity:  capacity,
@@ -77,19 +78,33 @@ func (s *Deque) PopBlock() interface{} {
 	s.Lock()
 	defer s.Unlock()
 
-	return <-s.buf
+	for {
+		res := s.Pop()
+		if res == nil {
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+
+		return res
+	}
 }
 
 func (s *Deque) PopBlockTimeout(timeout time.Duration) interface{} {
 	s.Lock()
 	defer s.Unlock()
 
-	select {
-	case res, _ := <-s.buf:
-		return res
-
-	case <-time.After(timeout):
-		return nil
+	timer := time.After(timeout)
+	for {
+		select {
+		case <-timer:
+			return nil
+		default:
+			res := s.Pop()
+			if res == nil {
+				continue
+			}
+			return res
+		}
 	}
 }
 
